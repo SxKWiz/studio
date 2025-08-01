@@ -23,12 +23,23 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
   theme,
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const isScriptAdded = useRef(false);
+  const widgetRef = useRef<any | null>(null);
+  const isScriptReady = useRef(false);
 
   useEffect(() => {
     const createWidget = () => {
       if (container.current && 'TradingView' in window && (window as any).TradingView.widget) {
+        // If widget already exists, just update symbol and theme
+        if (widgetRef.current) {
+            widgetRef.current.setSymbol(symbol, widgetRef.current.interval(), () => {});
+            widgetRef.current.changeTheme(theme === 'dark' ? 'dark' : 'light');
+            // We don't update style and indicators here to preserve user's in-widget changes
+            return;
+        }
+        
         container.current.innerHTML = '';
+        const containerId = `tradingview_widget_${Date.now()}`;
+        container.current.id = containerId;
         
         const widgetOptions = {
           width: '100%',
@@ -40,28 +51,34 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
           style: String(style),
           locale: 'en',
           enable_publishing: false,
-          allow_symbol_change: false,
+          allow_symbol_change: true, // Allow user to change symbol in widget
           studies: indicators.map(ind => indicatorMap[ind]),
-          container_id: `tradingview_widget_${Date.now()}`
+          container_id: containerId
         };
 
-        container.current.id = widgetOptions.container_id;
-
-        new (window as any).TradingView.widget(widgetOptions);
+        const tvWidget = new (window as any).TradingView.widget(widgetOptions);
+        widgetRef.current = tvWidget;
       }
     };
 
-    if (!isScriptAdded.current) {
-      const script = document.createElement('script');
-      script.src = 'https://s3.tradingview.com/tv.js';
-      script.type = 'text/javascript';
-      script.async = true;
-      script.onload = createWidget;
-      document.head.appendChild(script);
-      isScriptAdded.current = true;
-    } else {
-      createWidget();
+    const loadScriptAndCreateWidget = () => {
+        if (isScriptReady.current) {
+            createWidget();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://s3.tradingview.com/tv.js';
+        script.type = 'text/javascript';
+        script.async = true;
+        script.onload = () => {
+            isScriptReady.current = true;
+            createWidget();
+        };
+        document.head.appendChild(script);
     }
+    
+    loadScriptAndCreateWidget();
+
   }, [symbol, style, indicators, theme]);
 
   return <div ref={container} className="h-full w-full" />;
