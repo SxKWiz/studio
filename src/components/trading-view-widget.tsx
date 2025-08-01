@@ -25,26 +25,11 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
   const container = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<any | null>(null);
   const isScriptReady = useRef(false);
+  const lastProps = useRef({ symbol, style, indicators, theme });
 
   useEffect(() => {
     const createWidget = () => {
       if (container.current && 'TradingView' in window && (window as any).TradingView.widget) {
-        // If widget already exists, just update symbol and theme
-        if (widgetRef.current) {
-          widgetRef.current.onChartReady(() => {
-            if (widgetRef.current) {
-              const chart = widgetRef.current.chart();
-              chart.setSymbol(symbol);
-              widgetRef.current.changeTheme(theme === 'dark' ? 'dark' : 'light');
-            }
-          });
-          return;
-        }
-        
-        container.current.innerHTML = '';
-        const containerId = `tradingview_widget_${Date.now()}`;
-        container.current.id = containerId;
-        
         const widgetOptions = {
           width: '100%',
           height: '100%',
@@ -55,13 +40,37 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
           style: String(style),
           locale: 'en',
           enable_publishing: false,
-          allow_symbol_change: true, // Allow user to change symbol in widget
+          allow_symbol_change: true,
           studies: indicators.map(ind => indicatorMap[ind]),
-          container_id: containerId
+          container_id: container.current.id,
         };
 
-        const tvWidget = new (window as any).TradingView.widget(widgetOptions);
-        widgetRef.current = tvWidget;
+        // If widget already exists, and only symbol or theme changed, just recreate it.
+        // This is simpler and more reliable than trying to update it in-place.
+        if (widgetRef.current) {
+          if (
+            lastProps.current.symbol !== symbol ||
+            lastProps.current.theme !== theme
+          ) {
+             widgetRef.current.remove();
+             widgetRef.current = null;
+          } else {
+            // If other props change, we don't want to re-render and lose user's in-chart changes
+            return;
+          }
+        }
+        
+        if (!container.current.id) {
+            container.current.id = `tradingview_widget_${Date.now()}`;
+        }
+        
+        // Only create a new widget if one doesn't exist
+        if (!widgetRef.current) {
+            const tvWidget = new (window as any).TradingView.widget(widgetOptions);
+            widgetRef.current = tvWidget;
+        }
+
+        lastProps.current = { symbol, style, indicators, theme };
       }
     };
 
@@ -78,11 +87,22 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
             isScriptReady.current = true;
             createWidget();
         };
+        script.onerror = () => {
+          console.error("TradingView script failed to load.");
+        }
         document.head.appendChild(script);
     }
     
     loadScriptAndCreateWidget();
 
+    return () => {
+      // Cleanup script tag on component unmount
+      const script = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
+      if (script && script.parentElement && container.current === null) {
+          // Only remove if we are truly unmounting, not just re-rendering
+          // script.parentElement.removeChild(script);
+      }
+    };
   }, [symbol, style, indicators, theme]);
 
   return <div ref={container} className="h-full w-full" />;
