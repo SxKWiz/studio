@@ -36,10 +36,21 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
   const widgetRef = useRef<any | null>(null);
   const lastProps = useRef({ symbol, style, indicators, theme });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const createWidget = () => {
-      if (container.current && 'TradingView' in window && (window as any).TradingView.widget) {
+      if (!container.current) return;
+      
+      if (!('TradingView' in window) || !(window as any).TradingView?.widget) {
+        console.error('TradingView library not available');
+        setError('Chart library not available');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
         const widgetOptions = {
           width: '100%',
           height: '100%',
@@ -51,96 +62,131 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
           locale: 'en',
           enable_publishing: false,
           allow_symbol_change: true,
-          studies: indicators.map(ind => indicatorMap[ind]),
+          studies: indicators.map(ind => indicatorMap[ind]).filter(Boolean),
           container_id: container.current.id,
         };
 
-        // If widget already exists, and only symbol or theme changed, just recreate it.
-        // This is simpler and more reliable than trying to update it in-place.
+        // Clean up existing widget if necessary
         if (widgetRef.current) {
           if (
             lastProps.current.symbol !== symbol ||
             lastProps.current.theme !== theme
           ) {
-             setIsLoading(true);
-             widgetRef.current.remove();
-             widgetRef.current = null;
+            setIsLoading(true);
+            setError(null);
+            try {
+              widgetRef.current.remove();
+            } catch (e) {
+              console.warn('Error removing existing widget:', e);
+            }
+            widgetRef.current = null;
           } else {
-            // If other props change, we don't want to re-render and lose user's in-chart changes
+            // If only indicators changed, don't recreate widget
+            lastProps.current = { symbol, style, indicators, theme };
             return;
           }
         }
         
+        // Ensure container has an ID
         if (!container.current.id) {
-            container.current.id = `tradingview_widget_${Date.now()}_${Math.random()}`;
+          container.current.id = `tradingview_widget_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
         
-        // Only create a new widget if one doesn't exist
+        // Create new widget
         if (!widgetRef.current) {
-            const tvWidget = new (window as any).TradingView.widget(widgetOptions);
-            widgetRef.current = tvWidget;
-            
-            // Set up loading completion handler
-            tvWidget.onChartReady(() => {
+          const tvWidget = new (window as any).TradingView.widget(widgetOptions);
+          widgetRef.current = tvWidget;
+          
+          // Set up loading timeout
+          timeoutRef.current = setTimeout(() => {
+            if (isLoading) {
+              console.warn('Chart loading timeout');
+              setError('Chart loading timed out. Please try refreshing.');
               setIsLoading(false);
-            });
+            }
+          }, 30000); // 30 second timeout
+          
+          // Set up loading completion handler
+          tvWidget.onChartReady(() => {
+            setIsLoading(false);
+            setError(null);
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+          });
         }
 
         lastProps.current = { symbol, style, indicators, theme };
+      } catch (error) {
+        console.error('Error creating TradingView widget:', error);
+        setError('Failed to create chart');
+        setIsLoading(false);
       }
     };
 
     const loadScriptAndCreateWidget = () => {
-        if (scriptLoaded) {
+      if (scriptLoaded) {
+        createWidget();
+        return;
+      }
+      
+      if (scriptLoading) {
+        // Script is already loading, wait for it
+        const checkScript = () => {
+          if (scriptLoaded) {
             createWidget();
-            return;
-        }
-        
-        if (scriptLoading) {
-            // Script is already loading, wait for it
-            const checkScript = () => {
-                if (scriptLoaded) {
-                    createWidget();
-                } else {
-                    setTimeout(checkScript, 100);
-                }
-            };
-            checkScript();
-            return;
-        }
-        
-        // Check if script already exists
-        const existingScript = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
-        if (existingScript) {
-            if ('TradingView' in window) {
-                scriptLoaded = true;
-                createWidget();
-            }
-            return;
-        }
-        
-        scriptLoading = true;
-        const script = document.createElement('script');
-        script.src = 'https://s3.tradingview.com/tv.js';
-        script.type = 'text/javascript';
-        script.async = true;
-        script.onload = () => {
-            scriptLoaded = true;
-            scriptLoading = false;
-            createWidget();
-        };
-        script.onerror = () => {
-            console.error("TradingView script failed to load.");
-            scriptLoading = false;
+          } else if (scriptLoading) {
+            setTimeout(checkScript, 100);
+          } else {
+            // Script loading failed
+            setError('Failed to load chart library');
             setIsLoading(false);
-        }
-        document.head.appendChild(script);
-    }
+          }
+        };
+        checkScript();
+        return;
+      }
+      
+      // Check if script already exists and is loaded
+      const existingScript = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
+      if (existingScript && 'TradingView' in window && (window as any).TradingView?.widget) {
+        scriptLoaded = true;
+        createWidget();
+        return;
+      }
+      
+      // Load script
+      scriptLoading = true;
+      const script = document.createElement('script');
+      script.src = 'https://s3.tradingview.com/tv.js';
+      script.type = 'text/javascript';
+      script.async = true;
+      
+      script.onload = () => {
+        scriptLoaded = true;
+        scriptLoading = false;
+        createWidget();
+      };
+      
+      script.onerror = () => {
+        console.error('TradingView script failed to load');
+        scriptLoading = false;
+        setError('Failed to load chart library');
+        setIsLoading(false);
+      };
+      
+      document.head.appendChild(script);
+    };
     
     loadScriptAndCreateWidget();
 
-    // Return proper cleanup function
+    // Cleanup function
     return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       if (widgetRef.current) {
         try {
           widgetRef.current.remove();
@@ -151,6 +197,28 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
       }
     };
   }, [symbol, style, indicators, theme]);
+
+  if (error) {
+    return (
+      <div className="h-full w-full bg-card border rounded-lg p-4 flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <p className="text-sm mb-2">{error}</p>
+          <button 
+            onClick={() => {
+              setError(null);
+              setIsLoading(true);
+              // Force reload by clearing the script state
+              scriptLoaded = false;
+              scriptLoading = false;
+            }}
+            className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <ChartLoadingSkeleton />;
