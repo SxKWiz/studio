@@ -31,10 +31,14 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
       if (container.current && 'TradingView' in window && (window as any).TradingView.widget) {
         // If widget already exists, just update symbol and theme
         if (widgetRef.current) {
-            widgetRef.current.setSymbol(symbol, widgetRef.current.interval(), () => {});
-            widgetRef.current.changeTheme(theme === 'dark' ? 'dark' : 'light');
-            // We don't update style and indicators here to preserve user's in-widget changes
-            return;
+          widgetRef.current.onChartReady(() => {
+            if (widgetRef.current) {
+              const chart = widgetRef.current.chart();
+              chart.setSymbol(symbol);
+              widgetRef.current.changeTheme(theme === 'dark' ? 'dark' : 'light');
+            }
+          });
+          return;
         }
         
         container.current.innerHTML = '';
