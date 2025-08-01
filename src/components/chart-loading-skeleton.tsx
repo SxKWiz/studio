@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function ChartLoadingSkeleton() {
+const ChartLoadingSkeleton = () => {
   return (
     <div className="h-full w-full bg-card border rounded-lg p-4 animate-pulse">
       <div className="flex justify-between items-center mb-4">
@@ -58,7 +58,9 @@ export function ChartLoadingSkeleton() {
       </div>
     </div>
   );
-}
+};
+
+export { ChartLoadingSkeleton };
 
 export function AnalysisLoadingSkeleton() {
   return (
