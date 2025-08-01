@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -8,13 +9,14 @@ import { PatternAnalysisSheet } from '@/components/pattern-analysis-sheet';
 import { getPatternAnalysis } from '@/app/actions';
 import type { SuggestChartPatternsOutput } from '@/ai/flows/suggest-chart-patterns';
 import { useToast } from '@/hooks/use-toast';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 import { LoaderCircle } from 'lucide-react';
 import type { ChartStyle, Indicator } from '@/types/chart';
 
 export default function Home() {
-  const [ticker, setTicker] = useState('AAPL');
-  const [chartStyle, setChartStyle] = useState<ChartStyle>(2); // 2 is Candlestick
-  const [indicators, setIndicators] = useState<Record<string, boolean>>({
+  const [ticker, setTicker] = useLocalStorage('ticker', 'AAPL');
+  const [chartStyle, setChartStyle] = useLocalStorage<ChartStyle>('chartStyle', 2); // 2 is Candlestick
+  const [indicators, setIndicators] = useLocalStorage<Record<string, boolean>>('indicators', {
     'Moving Average': true,
     'Relative Strength Index': false,
     'Bollinger Bands': false,
