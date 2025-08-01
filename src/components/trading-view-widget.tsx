@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, memo } from 'react';
+import React, { useEffect, useRef, memo, useState } from 'react';
 import type { ChartStyle, Indicator } from '@/types/chart';
+import { ChartLoadingSkeleton } from './chart-loading-skeleton';
 
 interface TradingViewWidgetProps {
   symbol: string;
@@ -14,7 +15,16 @@ const indicatorMap: Record<Indicator, string> = {
   'Moving Average': 'MASimple@tv-basicstudies',
   'Relative Strength Index': 'RSI@tv-basicstudies',
   'Bollinger Bands': 'BollingerBands@tv-basicstudies',
+  'MACD': 'MACD@tv-basicstudies',
+  'Stochastic': 'Stochastic@tv-basicstudies',
+  'Williams %R': 'WilliamsR@tv-basicstudies',
+  'Volume': 'Volume@tv-basicstudies',
+  'Momentum': 'Momentum@tv-basicstudies',
 };
+
+// Global flag to track if TradingView script is loading/loaded
+let scriptLoading = false;
+let scriptLoaded = false;
 
 export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function TradingViewWidget({
   symbol,
@@ -24,8 +34,8 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
 }) {
   const container = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<any | null>(null);
-  const isScriptReady = useRef(false);
   const lastProps = useRef({ symbol, style, indicators, theme });
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const createWidget = () => {
@@ -52,6 +62,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
             lastProps.current.symbol !== symbol ||
             lastProps.current.theme !== theme
           ) {
+             setIsLoading(true);
              widgetRef.current.remove();
              widgetRef.current = null;
           } else {
@@ -61,13 +72,18 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
         }
         
         if (!container.current.id) {
-            container.current.id = `tradingview_widget_${Date.now()}`;
+            container.current.id = `tradingview_widget_${Date.now()}_${Math.random()}`;
         }
         
         // Only create a new widget if one doesn't exist
         if (!widgetRef.current) {
             const tvWidget = new (window as any).TradingView.widget(widgetOptions);
             widgetRef.current = tvWidget;
+            
+            // Set up loading completion handler
+            tvWidget.onChartReady(() => {
+              setIsLoading(false);
+            });
         }
 
         lastProps.current = { symbol, style, indicators, theme };
@@ -75,35 +91,70 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
     };
 
     const loadScriptAndCreateWidget = () => {
-        if (isScriptReady.current) {
+        if (scriptLoaded) {
             createWidget();
             return;
         }
+        
+        if (scriptLoading) {
+            // Script is already loading, wait for it
+            const checkScript = () => {
+                if (scriptLoaded) {
+                    createWidget();
+                } else {
+                    setTimeout(checkScript, 100);
+                }
+            };
+            checkScript();
+            return;
+        }
+        
+        // Check if script already exists
+        const existingScript = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
+        if (existingScript) {
+            if ('TradingView' in window) {
+                scriptLoaded = true;
+                createWidget();
+            }
+            return;
+        }
+        
+        scriptLoading = true;
         const script = document.createElement('script');
         script.src = 'https://s3.tradingview.com/tv.js';
         script.type = 'text/javascript';
         script.async = true;
         script.onload = () => {
-            isScriptReady.current = true;
+            scriptLoaded = true;
+            scriptLoading = false;
             createWidget();
         };
         script.onerror = () => {
-          console.error("TradingView script failed to load.");
+            console.error("TradingView script failed to load.");
+            scriptLoading = false;
+            setIsLoading(false);
         }
         document.head.appendChild(script);
     }
     
     loadScriptAndCreateWidget();
 
+    // Return proper cleanup function
     return () => {
-      // Cleanup script tag on component unmount
-      const script = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]');
-      if (script && script.parentElement && container.current === null) {
-          // Only remove if we are truly unmounting, not just re-rendering
-          // script.parentElement.removeChild(script);
+      if (widgetRef.current) {
+        try {
+          widgetRef.current.remove();
+        } catch (error) {
+          console.warn('Error removing TradingView widget:', error);
+        }
+        widgetRef.current = null;
       }
     };
   }, [symbol, style, indicators, theme]);
+
+  if (isLoading) {
+    return <ChartLoadingSkeleton />;
+  }
 
   return <div ref={container} className="h-full w-full" />;
 });
