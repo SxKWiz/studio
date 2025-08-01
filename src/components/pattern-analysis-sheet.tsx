@@ -6,9 +6,13 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  SheetFooter
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import type { SuggestChartPatternsOutput } from '@/ai/flows/suggest-chart-patterns';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { TrendingUp, TrendingDown, AlertTriangle, Newspaper } from 'lucide-react';
 
 interface PatternAnalysisSheetProps {
   open: boolean;
@@ -16,6 +20,14 @@ interface PatternAnalysisSheetProps {
   analysis: SuggestChartPatternsOutput;
   ticker: string;
 }
+
+const DataPill = ({ title, value, variant = 'secondary' }: { title: string, value: string | number, variant?: 'default' | 'secondary' }) => (
+  <div className="flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-sm">
+    <span className="text-muted-foreground">{title}:</span>
+    <span className="font-semibold text-foreground">{value}</span>
+  </div>
+);
+
 
 export function PatternAnalysisSheet({
   open,
@@ -25,8 +37,8 @@ export function PatternAnalysisSheet({
 }: PatternAnalysisSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg">
-        <SheetHeader className="mb-6 text-left">
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
+        <SheetHeader className="p-6 pb-4 text-left">
           <SheetTitle className="text-2xl">
             AI Pattern Analysis for {ticker}
           </SheetTitle>
@@ -34,33 +46,82 @@ export function PatternAnalysisSheet({
             Potential patterns identified by our AI. This is not financial advice.
           </SheetDescription>
         </SheetHeader>
-        <div className="space-y-6">
-          <div>
-            <h3 className="font-semibold text-lg mb-2 text-foreground">Identified Patterns</h3>
-            {analysis.patterns.length > 0 ? (
-              <ul className="space-y-3">
-                {analysis.patterns.map((pattern, index) => (
-                  <li key={index} className="p-4 rounded-lg border bg-card/50">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">{pattern}</span>
-                      <Badge variant={analysis.confidenceLevels[index] > 0.7 ? 'default' : 'secondary'}>
-                        Confidence: {(analysis.confidenceLevels[index] * 100).toFixed(0)}%
-                      </Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground">No specific patterns were identified.</p>
-            )}
+        <ScrollArea className="flex-1">
+        <div className="space-y-6 px-6 pb-6">
+            <div>
+              <h3 className="font-semibold text-lg mb-3 text-foreground flex items-center gap-2">
+                <TrendingUp className="text-green-500" />
+                Entry & Exit Points
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {analysis.entryPoints?.length > 0 ? (
+                  analysis.entryPoints.map((p, i) => <DataPill key={`en-${i}`} title="Entry" value={`$${p.toFixed(2)}`} />)
+                ) : <p className="text-sm text-muted-foreground">No entry points suggested.</p>}
+                {analysis.exitPoints?.length > 0 ? (
+                  analysis.exitPoints.map((p, i) => <DataPill key={`ex-${i}`} title="Exit" value={`$${p.toFixed(2)}`} />)
+                ) : <p className="text-sm text-muted-foreground">No exit points suggested.</p>}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="font-semibold text-lg mb-3 text-foreground">Identified Patterns</h3>
+              {analysis.patterns.length > 0 ? (
+                <ul className="space-y-3">
+                  {analysis.patterns.map((pattern, index) => (
+                    <li key={index} className="p-4 rounded-lg border bg-card/50">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{pattern}</span>
+                        <Badge variant={analysis.confidenceLevels[index] > 0.7 ? 'default' : 'secondary'}>
+                          Confidence: {(analysis.confidenceLevels[index] * 100).toFixed(0)}%
+                        </Badge>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">No specific patterns were identified.</p>
+              )}
+            </div>
+
+            <Separator />
+            
+            <div>
+              <h3 className="font-semibold text-lg mb-3 text-foreground">Overall Analysis</h3>
+              <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                {analysis.analysis}
+              </p>
+            </div>
+            
+            <Separator />
+
+            <div>
+              <h3 className="font-semibold text-lg mb-3 text-foreground flex items-center gap-2">
+                <AlertTriangle className="text-amber-500" />
+                Risk Assessment
+              </h3>
+              <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                {analysis.riskAssessment}
+              </p>
+            </div>
+
+            <Separator />
+            
+            <div>
+              <h3 className="font-semibold text-lg mb-3 text-foreground flex items-center gap-2">
+                <Newspaper className="text-primary" />
+                News Summary
+              </h3>
+              <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                {analysis.newsSummary}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold text-lg mb-2 text-foreground">Overall Analysis</h3>
-            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
-              {analysis.analysis}
-            </p>
-          </div>
-        </div>
+        </ScrollArea>
+        <SheetFooter className="p-6 pt-0 border-t bg-background/95 backdrop-blur-sm">
+           <p className="text-xs text-muted-foreground text-center w-full">Generated by AI. Always conduct your own research.</p>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   );
