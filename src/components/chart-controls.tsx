@@ -50,7 +50,7 @@ export function ChartControls({
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <>
       <form
         className="w-32"
         onSubmit={(e) => {
@@ -114,6 +114,6 @@ export function ChartControls({
         )}
         Analyze Patterns
       </Button>
-    </div>
+    </>
   );
 }

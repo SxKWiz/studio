@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { LoaderCircle } from 'lucide-react';
 import type { ChartStyle, Indicator } from '@/types/chart';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { useTheme } from 'next-themes';
 
 export default function Home() {
   const [ticker, setTicker] = useLocalStorage('ticker', 'AAPL');
@@ -25,6 +27,7 @@ export default function Home() {
   const [analysis, setAnalysis] = useState<SuggestChartPatternsOutput | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const { theme } = useTheme();
 
   const { toast } = useToast();
 
@@ -61,16 +64,19 @@ export default function Home() {
           <ChartGlanceLogo />
           <h1 className="text-xl font-semibold text-foreground">Chart Glance</h1>
         </div>
-        <ChartControls
-          ticker={ticker}
-          setTicker={setTicker}
-          chartStyle={chartStyle}
-          setChartStyle={setChartStyle}
-          indicators={indicators}
-          setIndicators={setIndicators}
-          onAnalyze={handleAnalyze}
-          isAnalyzing={isAnalysisLoading}
-        />
+        <div className="flex items-center gap-2">
+          <ChartControls
+            ticker={ticker}
+            setTicker={setTicker}
+            chartStyle={chartStyle}
+            setChartStyle={setChartStyle}
+            indicators={indicators}
+            setIndicators={setIndicators}
+            onAnalyze={handleAnalyze}
+            isAnalyzing={isAnalysisLoading}
+          />
+          <ThemeToggle />
+        </div>
       </header>
       <main className="flex-1 flex flex-col">
         {isAnalysisLoading && (
@@ -86,6 +92,7 @@ export default function Home() {
             symbol={ticker}
             style={chartStyle}
             indicators={activeIndicators}
+            theme={theme}
           />
         </div>
       </main>

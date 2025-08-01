@@ -7,6 +7,7 @@ interface TradingViewWidgetProps {
   symbol: string;
   style: ChartStyle;
   indicators: Indicator[];
+  theme?: string;
 }
 
 const indicatorMap: Record<Indicator, string> = {
@@ -19,6 +20,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
   symbol,
   style,
   indicators,
+  theme,
 }) {
   const container = useRef<HTMLDivElement>(null);
   const isScriptAdded = useRef(false);
@@ -34,7 +36,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
           symbol: symbol || 'AAPL',
           interval: 'D',
           timezone: 'Etc/UTC',
-          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+          theme: theme === 'dark' ? 'dark' : 'light',
           style: String(style),
           locale: 'en',
           enable_publishing: false,
@@ -60,7 +62,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = memo(function
     } else {
       createWidget();
     }
-  }, [symbol, style, indicators]);
+  }, [symbol, style, indicators, theme]);
 
   return <div ref={container} className="h-full w-full" />;
 });
